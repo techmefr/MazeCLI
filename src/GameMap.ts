@@ -1,5 +1,6 @@
 import { Player } from "./Player";
 import { Monster } from "./Monster";
+import { startBattle } from "./Battle";
 
 export class GameMap {
   private _map: string[];
@@ -13,7 +14,7 @@ export class GameMap {
   constructor(mapString: string) {
     this._map = mapString.split("\n");
     let playerPos = this.findPosition("B");
-    this.player = new Player(playerPos[0], playerPos[1]);
+    this.player = new Player(playerPos[0], playerPos[1], 100);
     let exitPos = this.findPosition("S");
     this.exitX = exitPos[0];
     this.exitY = exitPos[1];
@@ -36,7 +37,7 @@ export class GameMap {
     for (let i = 0; i < this._map.length; i++) {
       for (let j = 0; j < this._map[i].length; j++) {
         if (this._map[i][j] === "M") {
-          this.monsters.push(new Monster(i, j));
+          this.monsters.push(new Monster(i, j, 30));
         }
       }
     }
@@ -56,29 +57,58 @@ export class GameMap {
     }
   }
 
+  private isAdjacent(x1: number, y1: number, x2: number, y2: number): boolean {
+    return Math.abs(x1 - x2) + Math.abs(y1 - y2) === 1;
+  }
+
+  private combat(monster: Monster) {
+    startBattle(this.player, monster);
+
+    if (this.player.hp <= 0) {
+      console.log("Game Over! The player has been killed by the monster.");
+    } else if (!monster.isAlive()) {
+      console.log("The monster has been defeated!");
+      this.monsters = this.monsters.filter((m) => m !== monster);
+      this.player.gainXP(10);
+    }
+  }
+
   display() {
     const playerEmoji = "🧑";
     const monsterEmoji = "👹";
     const potionEmoji = "💧";
     const bossEmoji = "👑";
     const exitEmoji = "🚪";
+    const flagEmoji = "🚩";
 
-    for (let i = 0; i < this._map.length; i++) {
-      let row = this._map[i];
+    let mapDisplay = this._map.map((row, i) => {
+      let displayRow = row.split("");
+
+      this.monsters.forEach((monster) => {
+        if (monster.x === i) {
+          displayRow[monster.y] = monsterEmoji;
+        }
+      });
+
       if (i === this.player.x) {
-        row =
-          row.substr(0, this.player.y) +
-          playerEmoji +
-          row.substr(this.player.y + 1);
+        displayRow[this.player.y] = playerEmoji;
       }
-      console.log(row);
-    }
+      if (this.boss && this.boss.x === i) {
+        displayRow[this.boss.y] = bossEmoji;
+      }
+      this.potions.forEach((potion) => {
+        if (potion[0] === i) {
+          displayRow[potion[1]] = potionEmoji;
+        }
+      });
+      if (i === this.exitX) {
+        displayRow[this.exitY] = exitEmoji;
+      }
 
-    if (this.boss) {
-      let bossRow = this._map[this.boss.x].split("");
-      bossRow[this.boss.y] = bossEmoji;
-      this._map[this.boss.x] = bossRow.join("");
-    }
+      return displayRow.join("");
+    });
+
+    console.log(mapDisplay.join("\n"));
 
     console.log(
       `XP: ${this.player.xp}, HP: ${this.player.hp}, Monsters: ${this.monsters.length}`
@@ -151,5 +181,67 @@ export class GameMap {
     let row = this._map[x].split("");
     row[y] = "B";
     this._map[x] = row.join("");
+  }
+
+  play() {
+    const readline = require("readline").createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    const handleInput = (input: string) => {
+      input = input.trim().toLowerCase();
+      if (input === "quit") {
+        readline.close();
+        return;
+      }
+
+      let dx = 0,
+        dy = 0;
+      if (input === "nord") dx = -1;
+      if (input === "sud") dx = 1;
+      if (input === "ouest") dy = -1;
+      if (input === "est") dy = 1;
+
+      const newX = this.player.x + dx;
+      const newY = this.player.y + dy;
+
+      if (!this.canMove(newX, newY)) {
+        console.log("Mouvement impossible : il y a un mur.");
+      } else if (this._map[newX][newY] === "S") {
+        console.log("Félicitations ! Vous avez trouvé la sortie !");
+        readline.close();
+        return;
+      } else {
+        this.player.x = newX;
+        this.player.y = newY;
+      }
+
+      const monster = this.getMonsterAt(this.player.x, this.player.y);
+      if (monster) {
+        console.log("Vous rencontrez un monstre !");
+        this.combat(monster);
+      }
+
+      this.updateMonsters();
+
+      if (this.isGameOver()) {
+        console.log("Game Over!");
+        readline.close();
+        return;
+      } else {
+        this.display();
+        readline.question(
+          "Votre mouvement (nord, sud, est, ouest, quit) : ",
+          handleInput
+        );
+      }
+    };
+
+    this.display();
+    readline.question(
+      "Votre mouvement (nord, sud, est, ouest, quit) : ",
+      handleInput
+    );
   }
 }

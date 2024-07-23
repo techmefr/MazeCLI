@@ -55,4 +55,8 @@ export class Player {
     this.hp += 10;
     console.log("Vous avez trouvé une potion ! Points de vie augmentés.");
   }
+
+  gainXP(amount: number) {
+    this.xp += amount;
+  }
 }
