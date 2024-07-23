@@ -49,15 +49,28 @@ class GameMap {
         }
     }
     display() {
+        const playerEmoji = "🧑";
+        const monsterEmoji = "👹";
+        const potionEmoji = "💧";
+        const bossEmoji = "👑";
+        const exitEmoji = "🚪";
         for (let i = 0; i < this._map.length; i++) {
             let row = this._map[i];
             if (i === this.player.x) {
                 row =
-                    row.substr(0, this.player.y) + "P" + row.substr(this.player.y + 1);
+                    row.substr(0, this.player.y) +
+                        playerEmoji +
+                        row.substr(this.player.y + 1);
             }
             console.log(row);
         }
+        if (this.boss) {
+            let bossRow = this._map[this.boss.x].split("");
+            bossRow[this.boss.y] = bossEmoji;
+            this._map[this.boss.x] = bossRow.join("");
+        }
         console.log(`XP: ${this.player.xp}, HP: ${this.player.hp}, Monsters: ${this.monsters.length}`);
+        console.log(`Exit: (${this.exitX}, ${this.exitY})`);
     }
     canMove(x, y) {
         if (x < 0 || x >= this._map.length || y < 0 || y >= this._map[0].length) {
