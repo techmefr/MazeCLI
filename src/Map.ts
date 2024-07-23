@@ -1,52 +1,82 @@
-import { Player } from './Player';
+import { GameMap } from "./GameMap";
+import * as readline from "readline";
 
-export class Map {
-    private _map: string[];
-    private player: Player;
-    private exitX: number;
-    private exitY: number;
+export class Game {
+  private map: GameMap;
 
-    constructor(mapString: string) {
-        this._map = mapString.split('\n');
-        let playerPos = this.findPosition('B');
-        this.player = new Player(playerPos[0], playerPos[1]);
-        let exitPos = this.findPosition('S');
-        this.exitX = exitPos[0];
-        this.exitY = exitPos[1];
-    }
+  constructor(mapString: string) {
+    this.map = new GameMap(mapString);
+  }
 
-    private findPosition(char: string): [number, number] {
-        for (let i = 0; i < this._map.length; i++) {
-            let j = this._map[i].indexOf(char);
-            if (j !== -1) {
-                return [i, j];
-            }
+  async play() {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    const question = (questionText: string) =>
+      new Promise<string>((resolve) => {
+        rl.question(questionText, resolve);
+      });
+
+    while (!this.map.isGameWon() && !this.map.isGameOver()) {
+      this.map.display();
+      let direction = await question(
+        "Entrez une direction (Nord, Sud, Est, Ouest) ou Quit pour quitter : "
+      );
+      if (direction.toLowerCase() === "quit") {
+        console.log("Jeu terminé.");
+        rl.close();
+        return;
+      }
+
+      this.map.getPlayer().move(direction, this.map);
+      let player = this.map.getPlayer();
+
+      let monster = this.map.getMonsterAt(player.x, player.y);
+      if (monster && monster.isAlive()) {
+        player.attack(monster);
+        if (monster.isAlive()) {
+          player.hp -= 5;
+        } else {
+          this.map.monsters = this.map.monsters.filter((m) => m.isAlive());
+          if (this.map.monsters.length === 0 && !this.map.boss) {
+            this.map.spawnBoss();
+          }
         }
-        throw new Error(`${char} not found in the map`);
-    }
+      }
 
-    display() {
-        for (let i = 0; i < this._map.length; i++) {
-            let row = this._map[i];
-            if (i === this.player.x) {
-                row = row.substr(0, this.player.y) + 'P' + row.substr(this.player.y + 1);
-            }
-            console.log(row);
+      let potionIndex = this.map.potions.findIndex(
+        (p) => p[0] === player.x && p[1] === player.y
+      );
+      if (potionIndex !== -1) {
+        player.collectPotion();
+        this.map.potions.splice(potionIndex, 1);
+      }
+
+      this.map.updateMonsters();
+
+      if (
+        this.map.boss &&
+        this.map.boss.x === player.x &&
+        this.map.boss.y === player.y
+      ) {
+        player.attack(this.map.boss);
+        if (!this.map.boss.isAlive()) {
+          console.log("Félicitations, vous avez vaincu le boss final !");
+          rl.close();
+          return;
+        } else {
+          player.hp -= 10;
         }
+      }
     }
 
-    canMove(x: number, y: number): boolean {
-        if (x < 0 || x >= this._map.length || y < 0 || y >= this._map[0].length) {
-            return false;
-        }
-        return this._map[x][y] !== '#';
+    if (this.map.isGameWon()) {
+      console.log("Félicitations, vous avez trouvé la sortie !");
+    } else if (this.map.isGameOver()) {
+      console.log("Vous avez été tué par un monstre. Jeu terminé.");
     }
-
-    isGameWon(): boolean {
-        return this.player.x === this.exitX && this.player.y === this.exitY;
-    }
-
-    getPlayer(): Player {
-        return this.player;
-    }
+    rl.close();
+  }
 }
